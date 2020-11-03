@@ -1,4 +1,13 @@
-### Hi there 👋
+### Hi there 👋, I'm Billy Sutomo, a Software Engineer from Indonesia 🇮🇩
+
+- 🔭 I’m currently working on [chocolate-waffle](https://github.com/billysutomo/chocolate-waffle)
+- 🌱 I’m currently learning [Golang]() and [Typescript]()
+- 💬 Ask me about anything
+- 📫 How to reach me: [Twitter](https://twitter.com/billysutomo)
+- **Programming**: Javascript, Typescript, Python, Java, and Go
+- **Tech**:  
+  - **Client**: Android, Flutter, React,
+  - **Backend**: Nodejs, Redis, RabbitMQ, PostgreSQL, MySQL, Cassandra, MongoDB, Kubernetes, Docker
 
 <!--
 **billysutomo/billysutomo** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
