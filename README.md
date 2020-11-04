@@ -8,6 +8,7 @@
 - **Tech**:  
   - **Client**: Android, Flutter, React,
   - **Backend**: Nodejs, Redis, RabbitMQ, PostgreSQL, MySQL, Cassandra, MongoDB, Kubernetes, Docker
+  - **Cloud**: GCP, AWS
 
 <!--
 **billysutomo/billysutomo** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
