@@ -1,7 +1,6 @@
 ### Hi there 👋, I'm Billy Sutomo, a Software Engineer from Indonesia 🇮🇩
 
 - 🔭 I’m currently working on [chocolate-waffle](https://github.com/billysutomo/chocolate-waffle)
-- 🌱 I’m currently learning [Golang]() and [Typescript]()
 - 💬 Ask me about anything
 - 📫 How to reach me: [Twitter](https://twitter.com/billysutomo)
 - **Programming**: Javascript, Typescript, Python, Java, and Go
