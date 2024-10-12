@@ -1,0 +1,12 @@
+baseURL: "https://example.com/"
+languageCode: "en-US"
+theme: "PaperMod"
+
+# Optional: Define languages if using multilingual
+language:
+  en:
+    languageCode: "en-us"
+    weight: 1
+  fr:
+    languageCode: "fr"
+    weight: 2
