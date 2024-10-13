@@ -4,4 +4,4 @@ theme: "PaperMod"
 params:
   homeInfoParams:
     Title: "[~]$ whoami"
-    Content: Software Engineer with interests in Server Architecture, Scalable Systems, Android and iOS Development, API Design, and Web Technologies; loves Automation, Cloud Infrastructure, and optimizing backend performance.
+    Content: Software Engineer with interests in Server Architecture, Scalable Systems, Android and iOS, and Web Technologies.
