@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>
+            Building Scalable APIs: Lessons from Production - Billy Sutomo
+        </title>
+        <meta
+            name="description"
+            content="Lessons learned scaling APIs from 1K to 100K requests per minute in production"
+        />
+        <link rel="stylesheet" href="../style.css" />
+    </head>
+    <body>
+        <div class="post-container">
+            <div class="post-header">
+                <div class="post-nav">
+                    <a href="/">← billy@sutomo:~/blog$</a> /posts/<span
+                        >why-database-transactions-nearly-broke-our-api-at-scale.md</span
+                    >
+                </div>
+
+                <h1 class="post-title">
+                    Why Database Transactions Nearly Broke Our API at Scale
+                </h1>
+
+                <div class="post-meta">
+                    <span>-rw-r--r-- 1 billy eng</span>
+                    <span>4.2K</span>
+                    <span>Jan 15 14:30</span>
+                    <span>5 min read</span>
+                </div>
+
+                <div class="post-tags">
+                    <span class="tag">api</span>
+                    <span class="tag">scaling</span>
+                    <span class="tag">backend</span>
+                    <span class="tag">go</span>
+                    <span class="tag">production</span>
+                </div>
+            </div>
+
+            <div class="post-content">
+                <p>
+                    We had to scale our REST API from 100 to 40,000 requests per
+                    minute. At first, we thought the challenge would be
+                    infrastructure or caching. In reality, the biggest
+                    bottleneck came from how we managed database transactions.
+                </p>
+
+                <h2>The Problem</h2>
+                <p>
+                    Our API was built with a typical setup: GO, PostgreSQL
+                    database, and deployed on a Cloud Run. It worked great for
+                    our initial users, but as traffic grew, we started seeing:
+                </p>
+
+                <ul>
+                    <li>Response times jumping from 200ms to 5+ seconds</li>
+                    <li>Database connection pool exhaustion</li>
+                    <li>Memory usage spiking during peak hours</li>
+                    <li>Intermittent 500 errors under load</li>
+                </ul>
+
+                <h2>Create Database Transaction On Every Request</h2>
+                <p>
+                    The major issue was database transactions. Our app was
+                    creating new transactions for every request, which quickly
+                    overwhelmed PostgreSQL.
+                </p>
+
+                <p>
+                    What happened was that some engineers didn’t realize how
+                    expensive and inefficient it is to create a new connection
+                    for every request.
+                </p>
+
+                <p>
+                    Secondly, creating a transaction for read-only queries was
+                    unnecessary.
+                </p>
+
+                <p>
+                    Lastly, transactions were being started at the top level of
+                    the request handler and kept open for the entire duration of
+                    the request, including time spent waiting for external
+                    services or processing data. This resulted in long-lived
+                    transactions that held locks on database rows or tables,
+                    blocking other transactions and leading to contention and
+                    deadlocks.
+                </p>
+
+                <p><strong>What we changed:</strong></p>
+                <p>
+                    We removed all unnecessary transactions that didn’t involve
+                    data processing. We also shortened the lifespan of
+                    transactions, opening them only when needed and closing them
+                    as soon as the operation was complete.
+                </p>
+
+                <p>
+                    <strong>Result:</strong> Database connection errors dropped
+                    to zero, and average response time improved by 60%.
+                </p>
+
+                <h2>Monitoring and Observability</h2>
+                <p>
+                    You can't optimize what you can't measure. So we added
+                    comprehensive monitoring:
+                </p>
+
+                <ul>
+                    <li>
+                        <strong>Application metrics:</strong> Response times,
+                        error rates, throughput
+                    </li>
+                    <li>
+                        <strong>Infrastructure metrics:</strong> CPU, memory,
+                        disk I/O
+                    </li>
+                    <li>
+                        <strong>Database metrics:</strong> Connection count,
+                        query performance, lock waits
+                    </li>
+                </ul>
+
+                <p>
+                    We used New Relic for application metrics, and GCP for
+                    everything else since our cloud provider is GCP. Having
+                    real-time dashboards helped us spot issues before they
+                    became critical.
+                </p>
+
+                <h2>Results</h2>
+                <p>After implementing these changes:</p>
+                <ul>
+                    <li>
+                        <strong>Response time:</strong> P95 went from 5s to
+                        300ms
+                    </li>
+                    <li>
+                        <strong>Error rate:</strong> Dropped from 7% to 2.5%
+                    </li>
+                    <li>
+                        <strong>Database load:</strong> 50% reduction in
+                        connection usage and CPU
+                    </li>
+                </ul>
+
+                <h2>Key Takeaways</h2>
+
+                <ol>
+                    <li>
+                        <strong>Keep transactions short:</strong> Only open a
+                        transaction when you’re about to modify data, and close
+                        it immediately after.
+                    </li>
+                    <li>
+                        <strong
+                            >Avoid transactions for read-only queries:</strong
+                        >
+                        They add overhead and can hold unnecessary locks.
+                    </li>
+                    <li>
+                        <strong
+                            >Don’t open transactions at the top of request
+                            handlers:</strong
+                        >
+                        Long-lived transactions block other queries, leading to
+                        contention and deadlocks.
+                    </li>
+                    <li>
+                        <strong
+                            >Database bottlenecks appear before infrastructure
+                            bottlenecks:</strong
+                        >
+                        Connection pooling and transaction handling usually
+                        limit scale earlier than CPU or memory.
+                    </li>
+                    <li>
+                        <strong>Measure everything:</strong> Application, infra,
+                        and database metrics are the only way to see what’s
+                        really happening in production.
+                    </li>
+                </ol>
+            </div>
+
+            <div class="back-to-terminal">
+                <a href="/">← Back to terminal</a>
+            </div>
+        </div>
+
+        <script>
+            // Theme functionality
+            function toggleTheme() {
+                const body = document.body;
+                const currentTheme = body.getAttribute("data-theme") || "dark";
+                const newTheme = currentTheme === "dark" ? "light" : "dark";
+                body.setAttribute("data-theme", newTheme);
+                localStorage.setItem("theme", newTheme);
+            }
+
+            // Initialize theme
+            document.addEventListener("DOMContentLoaded", () => {
+                const savedTheme = localStorage.getItem("theme") || "dark";
+                document.body.setAttribute("data-theme", savedTheme);
+            });
+
+            // Keyboard shortcut
+            document.addEventListener("keydown", (e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+                    e.preventDefault();
+                    toggleTheme();
+                }
+            });
+        </script>
+    </body>
+</html>

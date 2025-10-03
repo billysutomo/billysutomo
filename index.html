@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Billy Sutomo - Engineering Blog</title>
+        <meta
+            name="description"
+            content="Personal engineering blog sharing what I make and find"
+        />
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <div class="terminal-container">
+            <div class="terminal-header">
+                <div class="terminal-controls">
+                    <span class="control close"></span>
+                    <span class="control minimize"></span>
+                    <span class="control maximize"></span>
+                </div>
+                <div class="terminal-title">billy@sutomo: ~/blog</div>
+                <div class="terminal-options">
+                    <button class="theme-toggle" onclick="toggleTheme()">
+                        ⌘K
+                    </button>
+                </div>
+            </div>
+
+            <div id="terminal" class="terminal-body">
+                <!-- Terminal interface will be injected here by JavaScript -->
+            </div>
+        </div>
+
+        <script src="js/terminal.js"></script>
+        <script>
+            // Theme toggle functionality
+            function toggleTheme() {
+                const body = document.body;
+                const currentTheme = body.getAttribute("data-theme") || "dark";
+                const newTheme = currentTheme === "dark" ? "light" : "dark";
+
+                body.setAttribute("data-theme", newTheme);
+                localStorage.setItem("theme", newTheme);
+            }
+
+            // Initialize theme
+            document.addEventListener("DOMContentLoaded", () => {
+                const savedTheme = localStorage.getItem("theme") || "dark";
+                document.body.setAttribute("data-theme", savedTheme);
+            });
+
+            // Keyboard shortcut for theme toggle
+            document.addEventListener("keydown", (e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+                    e.preventDefault();
+                    toggleTheme();
+                }
+            });
+        </script>
+    </body>
+</html>
