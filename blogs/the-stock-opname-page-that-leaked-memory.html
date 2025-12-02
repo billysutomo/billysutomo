@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>The Stock Opname Page That Leaked Memory</title>
+        <meta
+            name="description"
+            content="How a simple camera component and React Query caused a memory leak in a stock opname feature"
+        />
+        <link rel="stylesheet" href="../style.css" />
+    </head>
+    <body>
+        <div class="post-container">
+            <div class="post-header">
+                <div class="post-nav-bar">
+                    <div class="post-nav">
+                        <a href="/">← billy@sutomo</a>:~/blogs/<span
+                            >the-stock-opname-page-that-leaked-memory</span
+                        >
+                    </div>
+                    <button
+                        id="theme-toggle"
+                        class="theme-toggle"
+                        type="button"
+                        aria-label="Toggle theme (⌘/Ctrl + K)"
+                    >
+                        ⌘K
+                    </button>
+                </div>
+
+                <h1 class="post-title">
+                    The Stock Opname Page That Leaked Memory
+                </h1>
+
+                <div class="post-meta">
+                    <span>27 November 2025</span>
+                </div>
+
+                <div class="post-tags">
+                    <span class="tag">web</span>
+                    <span class="tag">expo</span>
+                    <span class="tag">react</span>
+                </div>
+            </div>
+
+            <div class="post-content">
+                <p>
+                    I recently found a memory leak in one of my internal web
+                    tools. The feature looked simple from the outside. It was a
+                    stock opname page where the user scans an item with the
+                    camera, submits it, then goes back to the result page. After
+                    that they continue the next item. Nothing unusual.
+                </p>
+
+                <p>
+                    The problem started when the team reported that the page
+                    became slower after a few cycles. At first it felt like
+                    normal browser lag, but after repeating the flow a few times
+                    the memory usage kept climbing and never went down. I could
+                    reproduce it by doing the same steps again and again.
+                </p>
+
+                <p>
+                    Open the camera page, scan, submit, go back to results.
+                    Repeat.
+                </p>
+
+                <p>
+                    It turned out the combination of camera mounting and React
+                    Query invalidations was the root cause.
+                </p>
+
+                <h2>The repeated mount and unmount problem</h2>
+                <p>
+                    Every time the user entered the camera page, the app mounted
+                    a camera component. When they finished scanning, the page
+                    unmounted the camera and went back to the result page. This
+                    repeated many times.
+                </p>
+
+                <p>
+                    I assumed the camera component would clean up everything
+                    when unmounted. It did not. The stream from the browser
+                    camera stayed open for a short time, event listeners were
+                    not fully cleaned up, and references stayed in memory. It
+                    was not a huge leak on its own, but it accumulated on every
+                    cycle.
+                </p>
+
+                <p>
+                    After 10 or 15 cycles, the browser became noticeably slower.
+                    After 20 cycles, the tab felt heavy and memory usage went up
+                    permanently.
+                </p>
+
+                <h2>The React Query side effect</h2>
+                <p>
+                    On top of that, I used React Query to refresh the stock data
+                    after every submission. After the user scanned one item and
+                    submitted it, I invalidated the query so the result page
+                    would refetch the full list.
+                </p>
+
+                <p>
+                    That list is not small. One request can return hundreds of
+                    items for a single stock opname session, with each item
+                    marked as scanned or not scanned. So every time one item was
+                    processed, the frontend pulled the entire list again.
+                </p>
+
+                <p>In practice, this meant:</p>
+
+                <ul>
+                    <li>Scan one item</li>
+                    <li>Submit</li>
+                    <li>React Query refetches a list with hundreds of rows</li>
+                    <li>Repeat this over and over during the opname</li>
+                </ul>
+
+                <p>
+                    React Query did its job. It cached every response and kept
+                    old data in memory until its cache time expired. The problem
+                    was the size and frequency of the refetches. Each refetch
+                    returned a large list, and because the default React Query
+                    cache time is 5 minutes, none of the previous responses were
+                    cleared immediately.
+                </p>
+
+                <p>
+                    During stock opname, the user triggered this refetch over
+                    and over, so the browser ended up holding several large
+                    responses at the same time before garbage collection finally
+                    kicked in.
+                </p>
+
+                <h2>The navigation pattern made it worse</h2>
+                <p>
+                    The design for this flow was a back and forth pattern. List
+                    page → camera page → list page → camera page.
+                </p>
+
+                <p>
+                    I thought it made the UX easier by keeping things simple.
+                    But this design is the perfect setup for memory leaks.
+                    Anything that is not cleaned up perfectly will multiply with
+                    each cycle, because the user repeats it many times in one
+                    session. In this case, both the camera instance and the
+                    React Query cache inflated the memory.
+                </p>
+
+                <p>
+                    If the user only visited once or twice, nobody would notice.
+                    But stock opname is a repetitive task. Users do it hundreds
+                    of times.
+                </p>
+
+                <h2>The final fix</h2>
+                <p>There were a few changes that finally solved it.</p>
+
+                <p>
+                    The camera component stopped being recreated from zero for
+                    every scan. Instead, a persistent camera instance lived
+                    inside a stable parent component. Mount once, reuse it.
+                </p>
+
+                <p>
+                    React Query caching was limited with a proper stale time,
+                    and invalidation only happened when new data was actually
+                    needed. No more triggering unnecessary refetches.
+                </p>
+
+                <p>
+                    The camera stream was cleaned up manually. Tracks were
+                    closed, listeners removed, and references cleared before
+                    unmounting.
+                </p>
+
+                <p>
+                    The back-and-forth pattern was retired. Instead, the camera
+                    and result view live in the same component, switching
+                    between views without fully destroying everything.
+                </p>
+
+                <p>
+                    After these changes, the memory footprint stayed stable even
+                    after a hundred cycles. The page felt normal again.
+                </p>
+
+                <h2>What I learned</h2>
+                <p>
+                    This bug was a good reminder that browser memory leaks do
+                    not always come from complicated logic. Sometimes they come
+                    from simple design choices.
+                </p>
+
+                <p>
+                    A camera component looks harmless until you mount and
+                    unmount it twenty times in a row. React Query looks simple
+                    until invalidations stack up over time. A navigation pattern
+                    looks clean until you repeat it a hundred times.
+                </p>
+
+                <p>
+                    Stock opname is repetitive by nature. Any leak, even a small
+                    one, becomes visible fast.
+                </p>
+
+                <p>
+                    This was one of those cases. The fix was not about writing
+                    clever code. It was about noticing how the page was being
+                    used, how components were being mounted, and how often
+                    things were being recreated.
+                </p>
+            </div>
+
+            <div class="back-to-terminal">
+                <a href="/">← Back to home</a>
+            </div>
+        </div>
+
+        <script src="../js/theme.js"></script>
+    </body>
+</html>

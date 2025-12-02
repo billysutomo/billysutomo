@@ -4,9 +4,9 @@ class TerminalBlog {
     this.currentPath = "~/blog";
     this.commandHistory = [];
     this.historyIndex = -1;
-    this.posts = [
+    this.blogs = [
       {
-        id: "posts/why-database-transactions-nearly-broke-our-api-at-scale",
+        id: "blogs/why-database-transactions-nearly-broke-our-api-at-scale",
         filename: "why-database-transactions-nearly-broke-our-api-at-scale.md",
         title: "Why Database Transactions Nearly Broke Our API at Scale",
         permissions: "rw-r--r--",
@@ -174,8 +174,8 @@ class TerminalBlog {
     const isLongFormat = args.includes("-la") || args.includes("-l");
 
     if (isLongFormat) {
-      this.addOutput(`total ${this.posts.length}`);
-      this.posts.forEach((post) => {
+      this.addOutput(`total ${this.blogs.length}`);
+      this.blogs.forEach((post) => {
         const featured = post.meta.featured ? "*" : " ";
         this.addOutput(
           `${post.permissions} 1 ${post.owner} ${post.group} ${post.size.padStart(6)} ${post.modified} ${post.filename}${featured}`,
@@ -184,7 +184,7 @@ class TerminalBlog {
         );
       });
     } else {
-      const filenames = this.posts.map((p) => p.filename).join("  ");
+      const filenames = this.blogs.map((p) => p.filename).join("  ");
       this.addOutput(filenames);
     }
   }
@@ -195,7 +195,7 @@ class TerminalBlog {
       return;
     }
 
-    const post = this.posts.find(
+    const post = this.blogs.find(
       (p) => p.filename === filename || p.id === filename,
     );
     if (post) {

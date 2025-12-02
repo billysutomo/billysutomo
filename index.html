@@ -6,56 +6,85 @@
         <title>Billy Sutomo - Engineering Blog</title>
         <meta
             name="description"
-            content="Personal engineering blog sharing what I make and find"
+            content="Engineering notes on building calm systems, scaling APIs, and fixing the sharp edges of product engineering."
         />
         <link rel="stylesheet" href="style.css" />
     </head>
-    <body>
-        <div class="terminal-container">
-            <div class="terminal-header">
-                <div class="terminal-controls">
-                    <span class="control close"></span>
-                    <span class="control minimize"></span>
-                    <span class="control maximize"></span>
+    <body class="home">
+        <div class="page-shell">
+            <header class="masthead">
+                <div class="mast-left">
+                    <span class="prompt">billy@sutomo</span>
+                    <span class="path">~/engineering-blog</span>
                 </div>
-                <div class="terminal-title">billy@sutomo: ~/blog</div>
-                <div class="terminal-options">
-                    <button class="theme-toggle" onclick="toggleTheme()">
+                <nav class="mast-nav">
+                    <a href="#about">about</a>
+                    <a href="#writing">writing</a>
+                    <a href="#contact">contact</a>
+                    <a href="sitemap.xml">sitemap</a>
+                    <button
+                        id="theme-toggle"
+                        class="theme-toggle"
+                        type="button"
+                        aria-label="Toggle theme (⌘/Ctrl + K)"
+                    >
                         ⌘K
                     </button>
-                </div>
-            </div>
+                </nav>
+            </header>
 
-            <div id="terminal" class="terminal-body">
-                <!-- Terminal interface will be injected here by JavaScript -->
-            </div>
+            <main>
+                <section class="intro" id="about">
+                    <!--<p class="eyebrow mono">engineer / backend / ops</p>-->
+                    <h1 class="intro-title">Calm engineering logs.</h1>
+                    <p class="intro-body">
+                        Short notes on keeping services reliable, debugging the
+                        strange stuff, and shipping product changes without
+                        drama.
+                    </p>
+                </section>
+
+                <section class="profile" id="profile">
+                    <div class="panel">
+                        <div class="panel-heading">whoami</div>
+                        <p class="bio">
+                            Backend-first engineer who owns the stack end to end
+                            across servers, cloud, CI/CD, observability, and the
+                            frontend surfaces that ship the product.
+                        </p>
+                    </div>
+                </section>
+
+                <section class="feed" id="writing">
+                    <div class="feed-heading">
+                        <p class="eyebrow mono">writing</p>
+                        <h2>Latest posts</h2>
+                    </div>
+
+                    <div class="feed-list" id="feed-list">
+                        <div class="feed-item">
+                            <p class="muted">Loading posts...</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="contact" id="contact">
+                    <p class="eyebrow mono">contact</p>
+                    <div class="contact-card">
+                        <span class="contact-label">Email</span>
+                        <a class="contact-link" href="mailto:hi@billysutomo.com"
+                            >hi@billysutomo.com</a
+                        >
+                    </div>
+                </section>
+            </main>
+
+            <footer class="site-footer">
+                <p>Logs over hype. Updates when there is something to ship.</p>
+            </footer>
         </div>
-
-        <script src="js/terminal.js"></script>
-        <script>
-            // Theme toggle functionality
-            function toggleTheme() {
-                const body = document.body;
-                const currentTheme = body.getAttribute("data-theme") || "dark";
-                const newTheme = currentTheme === "dark" ? "light" : "dark";
-
-                body.setAttribute("data-theme", newTheme);
-                localStorage.setItem("theme", newTheme);
-            }
-
-            // Initialize theme
-            document.addEventListener("DOMContentLoaded", () => {
-                const savedTheme = localStorage.getItem("theme") || "dark";
-                document.body.setAttribute("data-theme", savedTheme);
-            });
-
-            // Keyboard shortcut for theme toggle
-            document.addEventListener("keydown", (e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-                    e.preventDefault();
-                    toggleTheme();
-                }
-            });
-        </script>
+        <script src="js/theme.js"></script>
+        <script src="posts.js"></script>
+        <script src="js/home.js"></script>
     </body>
 </html>

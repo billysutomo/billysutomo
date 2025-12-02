@@ -3,9 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>
-            Building Scalable APIs: Lessons from Production - Billy Sutomo
-        </title>
+        <title>Why Database Transactions Nearly Broke Our API at Scale</title>
         <meta
             name="description"
             content="Lessons learned scaling APIs from 1K to 100K requests per minute in production"
@@ -15,10 +13,20 @@
     <body>
         <div class="post-container">
             <div class="post-header">
-                <div class="post-nav">
-                    <a href="/">← billy@sutomo:~/blog$</a> /posts/<span
-                        >why-database-transactions-nearly-broke-our-api-at-scale.md</span
+                <div class="post-nav-bar">
+                    <div class="post-nav">
+                        <a href="/">← billy@sutomo</a>:~/blogs/<span
+                            >why-database-transactions-nearly-broke-our-api-at-scale</span
+                        >
+                    </div>
+                    <button
+                        id="theme-toggle"
+                        class="theme-toggle"
+                        type="button"
+                        aria-label="Toggle theme (⌘/Ctrl + K)"
                     >
+                        ⌘K
+                    </button>
                 </div>
 
                 <h1 class="post-title">
@@ -26,10 +34,7 @@
                 </h1>
 
                 <div class="post-meta">
-                    <span>-rw-r--r-- 1 billy eng</span>
-                    <span>4.2K</span>
-                    <span>Jan 15 14:30</span>
-                    <span>5 min read</span>
+                    <span>15 January 2025</span>
                 </div>
 
                 <div class="post-tags">
@@ -37,7 +42,6 @@
                     <span class="tag">scaling</span>
                     <span class="tag">backend</span>
                     <span class="tag">go</span>
-                    <span class="tag">production</span>
                 </div>
             </div>
 
@@ -187,33 +191,9 @@
             </div>
 
             <div class="back-to-terminal">
-                <a href="/">← Back to terminal</a>
+                <a href="/">← Back to home</a>
             </div>
         </div>
-
-        <script>
-            // Theme functionality
-            function toggleTheme() {
-                const body = document.body;
-                const currentTheme = body.getAttribute("data-theme") || "dark";
-                const newTheme = currentTheme === "dark" ? "light" : "dark";
-                body.setAttribute("data-theme", newTheme);
-                localStorage.setItem("theme", newTheme);
-            }
-
-            // Initialize theme
-            document.addEventListener("DOMContentLoaded", () => {
-                const savedTheme = localStorage.getItem("theme") || "dark";
-                document.body.setAttribute("data-theme", savedTheme);
-            });
-
-            // Keyboard shortcut
-            document.addEventListener("keydown", (e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-                    e.preventDefault();
-                    toggleTheme();
-                }
-            });
-        </script>
+        <script src="../js/theme.js"></script>
     </body>
 </html>
