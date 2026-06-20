@@ -1,5 +1,14 @@
 window.POSTS = [
   {
+    title: "How We Centralized LLM Access with LiteLLM",
+    slug: "how-we-centralized-llm-access-with-litellm",
+    path: "blogs/how-we-centralized-llm-access-with-litellm.html",
+    date: "2026-06-16",
+    tags: ["llm", "litellm", "backend", "infra"],
+    summary:
+      "We put a single LiteLLM proxy in front of multiple open-source LLM providers to unify access, track spend, and enforce per-user rate limits.",
+  },
+  {
     title: "Replacing Sendbird with an In-house Chat Engine",
     slug: "replacing-sendbird-with-an-in-house-chat-engine",
     path: "blogs/replacing-sendbird-with-an-in-house-chat-engine.html",

@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>How We Centralized LLM Access with LiteLLM</title>
+        <meta
+            name="description"
+            content="How we put a single LiteLLM proxy in front of multiple open-weight model hosts and hosted APIs to unify access, track spend, and enforce per-user rate limits."
+        />
+        <link rel="stylesheet" href="../style.css" />
+        <script src="/js/analytics.js"></script>
+    </head>
+    <body>
+        <div class="post-container">
+            <div class="post-header">
+                <div class="post-nav-bar">
+                    <div class="post-nav">
+                        <a href="/">← billy@sutomo</a>:~/blogs/<span
+                            >how-we-centralized-llm-access-with-litellm</span
+                        >
+                    </div>
+                    <button
+                        id="theme-toggle"
+                        class="theme-toggle"
+                        type="button"
+                        aria-label="Toggle theme (⌘/Ctrl + K)"
+                    >
+                        ⌘K
+                    </button>
+                </div>
+
+                <h1 class="post-title">
+                    How We Centralized LLM Access with LiteLLM
+                </h1>
+
+                <div class="post-meta">
+                    <span>16 June 2026</span>
+                </div>
+
+                <div class="post-tags">
+                    <span class="tag">llm</span>
+                    <span class="tag">litellm</span>
+                    <span class="tag">backend</span>
+                    <span class="tag">infra</span>
+                </div>
+            </div>
+
+            <div class="post-content">
+                <p>
+                    The problem started with cost. As our usage of hosted
+                    frontier models like GPT and Claude grew, so did the bill.
+                    Long-running internal tools, batch jobs, and developer
+                    experiments, none of which we wanted to impose hard limits
+                    on, were quietly driving our monthly costs up.
+                </p>
+
+                <p>
+                    The math stopped making sense. We were paying flagship
+                    prices for a lot of work that did not need flagship
+                    capability: summarization, classification, structured
+                    extraction, code transforms, internal Q&amp;A. Open-weight
+                    models had caught up enough to cover most of those
+                    workloads, often at a small fraction of the cost, with the
+                    option to self-host when the math favored it further. The
+                    obvious move was to shift as much of the workload as we
+                    could to open-weight models and stop treating hosted APIs as
+                    the universal default.
+                </p>
+
+                <p>
+                    The problem we did not anticipate was governance. Once teams
+                    were free to choose the best model for each job. Some were
+                    hosted, some open-weight, each from a different provider
+                    with its own API and billing. The result was a governance
+                    hole. Nobody had a clear picture of who was calling what,
+                    how much we were spending, or which teams were ramping load
+                    on a shared quota. A handful of services, plus a few dozen
+                    developers, were each managing their own credentials and
+                    their own usage rules. We needed to consolidate that without
+                    slowing anyone down.
+                </p>
+
+                <h2>Why direct provider access stops working</h2>
+                <p>
+                    The pain was not technical. It was operational. Every
+                    engineer who needed LLM access had to do the same dance:
+                </p>
+
+                <ul>
+                    <li>
+                        Create an account at each provider and provision an API
+                        key.
+                    </li>
+                    <li>
+                        Hardcode or otherwise manage that key in their service
+                        or local environment.
+                    </li>
+                    <li>
+                        Discover, usually by reading docs or trying an API call,
+                        that the model they wanted was not available on the
+                        provider they had a key for.
+                    </li>
+                    <li>Provision a new key, repeat.</li>
+                </ul>
+
+                <p>
+                    That friction is invisible on day one. Multiply it across
+                    services and developers, and you end up with a sprawl of
+                    credentials, several partially-used accounts, and no shared
+                    sense of what is going on. Worse, when a key leaked or got
+                    burned through, the blast radius was invisible until the
+                    bill arrived.
+                </p>
+
+                <p>We wanted three things out of a centralized layer:</p>
+
+                <ul>
+                    <li>
+                        <strong>One way in.</strong> A single endpoint, a single
+                        SDK, one set of credentials to rotate.
+                    </li>
+                    <li>
+                        <strong>Per-user visibility.</strong> Who is calling
+                        which model, how often, and what it costs.
+                    </li>
+                    <li>
+                        <strong>Per-user guardrails.</strong> Rate limits and
+                        budgets that are enforced, even when something goes
+                        wrong.
+                    </li>
+                </ul>
+
+                <h2>Why LiteLLM</h2>
+                <p>
+                    We evaluated a few options: building a thin proxy in Go,
+                    using a managed gateway, and LiteLLM. LiteLLM won because it
+                    solved the boring parts for us. It speaks the
+                    OpenAI-compatible API, already knows how to talk to every
+                    provider we care about, and ships with the features we
+                    needed out of the box, including authentication, per-user
+                    limits, and spend tracking, rather than forcing us to build
+                    and maintain them ourselves.
+                </p>
+
+                <p>
+                    Another factor was maintainability. LiteLLM is built in
+                    Python, which has effectively become the lingua franca of
+                    the AI ecosystem. Most AI tooling, SDKs, and integrations
+                    are developed in Python first, making it easier to extend,
+                    troubleshoot, and keep up with new model providers as they
+                    emerge. Choosing a solution that lives close to where AI
+                    innovation happens reduces the amount of custom
+                    infrastructure we need to maintain over time.
+                </p>
+
+                <h2>How we deployed it</h2>
+                <p>
+                    The deployment is intentionally small. The proxy sits behind
+                    Cloudflare, runs as a container on a single EC2 instance
+                    inside our AWS account, and uses RDS PostgreSQL for spend
+                    logs and user/key state. We did not want a fleet of services
+                    to operate on day one.
+                </p>
+                <p>
+                    We optimized for simplicity first. The current architecture
+                    provides sufficient capacity for our workloads, and scaling
+                    is straightforward: compute resources can be increased
+                    through vertical scaling, while database capacity and
+                    storage can be expanded independently as demand grows. We
+                    can defer distributed systems complexity until there is a
+                    clear operational need for it.
+                </p>
+
+                <h2>Tradeoffs</h2>
+                <p>
+                    No piece of infrastructure is free. The main tradeoff we
+                    accepted is that the proxy becomes a critical dependency. If
+                    it goes down, LLM access goes down with it. The deployment
+                    is simple to operate, easy to monitor, and straightforward
+                    to recover. We can add redundancy later if reliability
+                    requirements grow. For now, the operational simplicity
+                    outweighs the risk.
+                </p>
+
+                <h2>Was it worth it</h2>
+                <p>
+                    Yes, decisively. The friction of operating without a gateway
+                    was higher than the friction of operating one. We gained
+                    visibility, control, and a single place to evolve the
+                    platform. We gave up a small amount of operational
+                    simplicity at the edge, but the edge was never where the
+                    real pain lived.
+                </p>
+
+                <p>
+                    What is interesting is that we are only using a fraction of
+                    LiteLLM's capabilities today. The initial deployment focused
+                    on solving the immediate problems: centralized access,
+                    authentication, spend tracking, and provider management.
+                    That alone delivered enough value to justify the platform.
+                </p>
+                <p>
+                    Looking ahead, the gateway becomes a foundation for broader
+                    AI infrastructure. One area we're exploring is using it as a
+                    central MCP gateway, allowing internal MCP servers to be
+                    registered, governed, and distributed through a single
+                    access layer. The same pattern that works for model access
+                    can also work for tool access.
+                </p>
+                <p>
+                    If you're at the stage where a handful of services and a few
+                    dozen developers are each managing their own LLM access, the
+                    answer is almost always to centralize. LiteLLM is a
+                    reasonable default for that. Neither the only option nor
+                    perfect, but it solves a real problem with little overhead.
+                </p>
+
+                <p>
+                    The broader lesson is that consolidation is governance, not
+                    just convenience. A single proxy is how you see spend,
+                    enforce limits, and revoke access. The cost saving is real,
+                    but the visibility is the actual prize. Anything that speaks
+                    the OpenAI shape inherits every tool and SDK that already
+                    does. That is why a thin proxy that translates request
+                    shapes is so much more useful than a custom gateway with a
+                    custom interface.
+                </p>
+            </div>
+
+            <div class="back-to-terminal">
+                <a href="/">← Back to home</a>
+            </div>
+        </div>
+
+        <script src="../js/theme.js"></script>
+    </body>
+</html>
