@@ -1,5 +1,14 @@
 window.POSTS = [
   {
+    title: "A Connection Pool Bottleneck Behind a Scheduled Traffic Spike",
+    slug: "a-connection-pool-bottleneck-behind-a-scheduled-traffic-spike",
+    path: "blogs/a-connection-pool-bottleneck-behind-a-scheduled-traffic-spike.html",
+    date: "2026-09-16",
+    tags: ["go", "postgresql", "performance", "observability"],
+    summary:
+      "A scheduled 9 AM push-notification burst kept stalling the job detail page. The slow query was innocent; the real bottleneck was the database connection pool.",
+  },
+  {
     title: "How We Centralized LLM Access with LiteLLM",
     slug: "how-we-centralized-llm-access-with-litellm",
     path: "blogs/how-we-centralized-llm-access-with-litellm.html",

@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>
+            A Connection Pool Bottleneck Behind a Scheduled Traffic Spike
+        </title>
+        <meta
+            name="description"
+            content="A scheduled 9 AM push-notification burst kept stalling the job detail page. The slow query was innocent; the real bottleneck was the database connection pool."
+        />
+        <link rel="stylesheet" href="../style.css" />
+        <script src="/js/analytics.js"></script>
+    </head>
+    <body>
+        <div class="post-container">
+            <div class="post-header">
+                <div class="post-nav-bar">
+                    <div class="post-nav">
+                        <a href="/">← billy@sutomo</a>:~/blogs/<span
+                            >a-connection-pool-bottleneck-behind-a-scheduled-traffic-spike</span
+                        >
+                    </div>
+                    <button
+                        id="theme-toggle"
+                        class="theme-toggle"
+                        type="button"
+                        aria-label="Toggle theme (⌘/Ctrl + K)"
+                    >
+                        ⌘K
+                    </button>
+                </div>
+
+                <h1 class="post-title">
+                    A Connection Pool Bottleneck Behind a Scheduled Traffic Spike
+                </h1>
+
+                <div class="post-meta">
+                    <span>11 September 2026</span>
+                </div>
+
+                <div class="post-tags">
+                    <span class="tag">go</span>
+                    <span class="tag">postgresql</span>
+                    <span class="tag">performance</span>
+                    <span class="tag">observability</span>
+                </div>
+            </div>
+
+            <div class="post-content">
+                <p>
+                    A misleading New Relic trace, nine goroutines, and a
+                    scheduled 9 AM push notification all contributed to a
+                    recurring stall on our job detail page. The slow query that
+                    everyone suspected turned out to be innocent. The real
+                    bottleneck was the database connection pool.
+                </p>
+
+                <h2>The symptom</h2>
+                <p>
+                    Every morning at 9 AM, our marketing team sends a push
+                    notification blast. Every morning at 9:03, database CPU and
+                    I/O spike. And every morning, a handful of requests to the
+                    job detail page (<code>GET /job/:slug</code>, the most
+                    important page in our product) would stall. Not just slow:
+                    stalled. One trace showed a response time of
+                    <strong>2 minutes 14 seconds</strong>.
+                </p>
+
+                <p>The New Relic trace for that request looked like this:</p>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Segment</th>
+                            <th>Duration</th>
+                            <th>%</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>GET /job/:slug</code></td>
+                            <td>2 min 14 s</td>
+                            <td>100%</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <code>service.jobPage</code>
+                            </td>
+                            <td>2 min 14 s</td>
+                            <td>99.74%</td>
+                        </tr>
+                        <tr>
+                            <td><code>Postgres select</code></td>
+                            <td>219 ms</td>
+                            <td>0.16%</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <code>repository.FindJob</code>
+                            </td>
+                            <td>45 ms</td>
+                            <td>0.03%</td>
+                        </tr>
+                        <tr>
+                            <td><code>Postgres other</code></td>
+                            <td>27 ms</td>
+                            <td>0.02%</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <p>
+                    The transaction spent 99.74% of its life inside
+                    <code>jobPage</code>, and New Relic could account for about
+                    <strong>300 milliseconds</strong> of it. The remaining 2
+                    minutes and 13 seconds were not attributed to anything. They
+                    sat inside a single parent segment with no children to
+                    explain them.
+                </p>
+
+                <h2>Why the trace showed nothing</h2>
+                <p>
+                    <code>jobPage</code> loads a job, then fetches everything
+                    the page needs (the jobseeker's profile, CV, skills,
+                    preferences, the employer, the application state) as
+                    <strong>9 parallel queries</strong> using an
+                    <code>errgroup</code>:
+                </p>
+
+                <pre><code>g, gctx := errgroup.WithContext(ctx)
+
+g.Go(func() error {
+	profile, err = repo.FindProfile(gctx, db, userID)
+	...
+})
+g.Go(func() error {
+	employer, err = employerRepo.FindEmployer(gctx, db, employerID)
+	...
+})
+// ... seven more</code></pre>
+
+                <p>
+                    Each repository method starts a New Relic segment from the
+                    context, and our Postgres driver
+                    (<code>nrpq</code>) creates a datastore segment for every
+                    query. In theory, the trace should show all nine.
+                </p>
+
+                <p>
+                    The catch is that the New Relic Go agent does not allow
+                    concurrent segment creation on a single transaction
+                    reference. All nine goroutines shared one
+                    <code>*newrelic.Transaction</code> through
+                    <code>gctx</code>. The agent keeps one segment stack per
+                    transaction, and nine goroutines pushing and popping on it
+                    concurrently corrupts that stack. The agent then silently
+                    drops the out-of-order segments.
+                </p>
+
+                <p>
+                    That is why the trace was empty. The segments that would
+                    have shown the slow queries were being created and
+                    immediately discarded, and all the unaccounted time
+                    collapsed into the parent <code>jobPage</code> segment.
+                </p>
+
+                <p>
+                    The fix is one transaction reference per goroutine:
+                </p>
+
+                <pre><code>// inside each g.Go closure:
+gctx := newrelic.NewContext(gctx, txn.NewGoroutine())</code></pre>
+
+                <p>
+                    We wrapped that in a small helper and added it to every
+                    closure. This changed nothing about production behavior, but
+                    it changed what we could see.
+                </p>
+
+                <h2>The pool queue</h2>
+                <p>The next morning, the trace told a different story:</p>
+
+                <pre><code>repository call #1        7.14 s   99.76%
+  ├─ Application code in (...)    7.14 s   99.65%   ← ???
+  └─ Postgres select                 8 ms    0.11%
+repository call #2        7.14 s   99.71%
+  ├─ Application code in (...)    7.14 s   99.65%   ← ???
+  └─ Postgres select                 4 ms    0.06%
+repository call #3         26 ms
+repository call #4         24 ms</code></pre>
+
+                <p>
+                    The repository call took <strong>7.14 seconds</strong>. The
+                    actual SQL query inside it took
+                    <strong>8 milliseconds</strong>. New Relic labelled the gap
+                    honestly: "Application code", meaning time inside the
+                    function that is not any instrumented database call.
+                </p>
+
+                <p>
+                    Two of the nine parallel queries blocked for an almost
+                    identical 7.14 seconds, then finished together. The other
+                    seven completed in 16–26 ms.
+                </p>
+
+                <p>
+                    That gap lives inside Go's <code>database/sql</code> package,
+                    in the connection pool. <code>nrpq</code> instruments the
+                    driver; the pool sits one layer above it, and no APM
+                    instrumentation can see into it. The timeline of those 7.14
+                    seconds was:
+                </p>
+
+                <pre><code>[ waiting for a free connection from the pool ]  ~7.1 s   ← invisible
+[ query executes ]                                8 ms</code></pre>
+
+                <p>
+                    The two stalled goroutines were the last two in line when
+                    the pool ran dry. Seven of nine got connections instantly;
+                    the remaining two queued until connections were available, which is why they
+                    woke up at the same moment.
+                </p>
+
+                <h2>The connection math</h2>
+                <p>
+                    Once you see it, the math is straightforward. For example,
+                    let each of these be a variable:
+                </p>
+
+                <pre><code>C = concurrency per instance (requests)
+Q = connections per jobPage request (one per parallel query)
+P = pool size (maxOpenConns per instance)
+
+peak demand       = C × Q connections
+requests that fit = P ÷ Q</code></pre>
+
+                <p>
+                    Once <code>C × Q</code> exceeds <code>P</code>, requests
+                    queue at the pool. On a normal day, queries are fast and
+                    connections turn over quickly enough that nobody notices.
+                    During the 9
+                    AM burst, the database slows down under load, so every
+                    connection is held longer, which means the queue grows
+                    faster, which means more requests pile up holding
+                    connections while waiting. A congestion collapse, triggered
+                    on schedule every morning by marketing.
+                </p>
+
+                <blockquote>
+                    Raising <code>maxOpenConns</code> only moves the ceiling; it
+                    does not remove the 9× multiplier. The real ceiling is
+                    <code>maxOpenConns</code> ×  <code>max instances</code> versus
+                    Postgres' <code>max_connections</code>. We would have been
+                    back here within a quarter.
+                </blockquote>
+
+                <h2>Merging the queries</h2>
+                <p>
+                    The fundamental problem was not pool size. It was that one
+                    page view needed <strong>nine simultaneous connections</strong>.
+                    So we merged the eight fan-out queries into a single
+                    statement: one round trip, one connection.
+                </p>
+
+                <p>
+                    The merged query returns exactly the same data as the eight
+                    separate queries it replaced, just in a single round trip.
+                    The approach is simple: fetch every section the page needs
+                    in one statement, returning single-row sections as columns
+                    and list-like sections as small JSON aggregates that the
+                    Go layer decodes into slices. The result preserves the old
+                    behavior, including how an empty section maps to a zero
+                    value. While merging, we also noticed one query was
+                    redundant and removed it.
+                </p>
+
+                <p>
+                    The risky part of a wide merged query is the positional
+                    <code>Scan()</code> list: one wrong column order and you are
+                    shipping bug. So we handled it with careful testing. We ran
+                    the old queries and the new one against the same schema and
+                    data, then compared the results for every field, including
+                    the empty and missing section cases.
+                </p>
+
+                <p>
+                    The test immediately caught a real bug: one legacy query
+                    scanned a date column into an embedded struct field whose
+                    name did not match, a mismatch invisible in the code until
+                    the comparison checked the two structs field by field.
+                </p>
+
+                <p>
+                    Production <code>EXPLAIN ANALYZE</code> on the merged query
+                    reported <strong>6.4 ms execution</strong>, with every table
+                    served by an index. We are satisfied with that result.
+                </p>
+
+                <h2>Results</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Before</th>
+                            <th>After</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Connections per request</td>
+                            <td>8–9, concurrent</td>
+                            <td><strong>1</strong></td>
+                        </tr>
+                        <tr>
+                            <td>DB round trips per request</td>
+                            <td>9</td>
+                            <td><strong>1</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Peak demand at 80 req/instance</td>
+                            <td>~720 conns</td>
+                            <td><strong>~80 conns</strong></td>
+                        </tr>
+                        <tr>
+                            <td>jobPage p99 during 9 AM burst</td>
+                            <td>up to <strong>2 min 14 s</strong></td>
+                            <td>milliseconds</td>
+                        </tr>
+                        <tr>
+                            <td>Trace visibility</td>
+                            <td>99.74% in jobPage, unattributed</td>
+                            <td>every step attributed</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h2>What we learned</h2>
+                <ol>
+                    <li>
+                        <strong
+                            >When your APM shows a large parent segment with no
+                            children, suspect the instrumentation before the
+                            code.</strong
+                        >
+                        Concurrent segment creation on one New Relic transaction
+                        reference silently drops segments.
+                        <code>txn.NewGoroutine()</code> per goroutine is not
+                        optional.
+                    </li>
+                    <li>
+                        <strong
+                            >"Application code" around a database call usually
+                            means the connection pool.</strong
+                        >
+                        Driver instrumentation cannot see pool wait time; it
+                        starts measuring after a connection is acquired. If the
+                        query is fast but the span is slow, you were queueing.
+                    </li>
+                    <li>
+                        <strong>Do the connection math.</strong>
+                        <code
+                            >concurrency per instance × connections per
+                            request</code
+                        >
+                        is your real demand. A pool sized for the average query
+                        count collapses the moment queries run in parallel.
+                    </li>
+                    <li>
+                        <strong>Pool size is a ceiling, not a fix.</strong>
+                        Reducing connections per request, whether through fewer
+                        queries or one merged query, removes the multiplier
+                        instead of raising the roof.
+                    </li>
+                    <li>
+                        <strong
+                            >Traffic bursts on a schedule are convenient.</strong
+                        >
+                        A predictable 9 AM spike is the easiest kind of incident
+                        to reproduce, instrument, and verify a fix against.
+                    </li>
+                    <li>
+                        <strong>Test the merge carefully.</strong> Merging
+                        queries is simple, but it is easy to get wrong.
+                        Comparing the old results with the new ones on the same
+                        data makes the change safe, and it will catch at least
+                        one bug you did not expect. It caught ours.
+                    </li>
+                </ol>
+
+            </div>
+
+            <div class="back-to-terminal">
+                <a href="/">← Back to home</a>
+            </div>
+        </div>
+
+        <script src="../js/theme.js"></script>
+    </body>
+</html>
