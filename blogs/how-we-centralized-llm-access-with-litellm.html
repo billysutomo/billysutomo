@@ -52,17 +52,17 @@
                     frontier models like GPT and Claude grew, so did the bill.
                     Long-running internal tools, batch jobs, and developer
                     experiments, none of which we wanted to impose hard limits
-                    on, were quietly driving our monthly costs up.
+                    on, were steadily driving our monthly costs up.
                 </p>
 
                 <p>
-                    The math stopped making sense. We were paying flagship
-                    prices for a lot of work that did not need flagship
-                    capability: summarization, classification, structured
-                    extraction, code transforms, internal Q&amp;A. Open-weight
+                    The cost stopped making sense. We were paying top-model
+                    prices for a lot of work that did not need a top model:
+                    summarization, classification, structured extraction, code
+                    transforms, internal Q&amp;A. Open-weight
                     models had caught up enough to cover most of those
                     workloads, often at a small fraction of the cost, with the
-                    option to self-host when the math favored it further. The
+                    option to self-host when that was cheaper. The
                     obvious move was to shift as much of the workload as we
                     could to open-weight models and stop treating hosted APIs as
                     the universal default.
@@ -70,21 +70,21 @@
 
                 <p>
                     The problem we did not anticipate was governance. Once teams
-                    were free to choose the best model for each job. Some were
-                    hosted, some open-weight, each from a different provider
-                    with its own API and billing. The result was a governance
-                    hole. Nobody had a clear picture of who was calling what,
-                    how much we were spending, or which teams were ramping load
-                    on a shared quota. A handful of services, plus a few dozen
-                    developers, were each managing their own credentials and
-                    their own usage rules. We needed to consolidate that without
-                    slowing anyone down.
+                    could choose the best model for each job, those choices
+                    spread across providers. Some were hosted, some open-weight,
+                    each with its own API and billing. The result was a
+                    governance gap. Nobody had a clear picture of who was
+                    calling what, how much we were spending, or which teams were
+                    ramping load on a shared quota. A handful of services, plus
+                    a few dozen developers, were each managing their own
+                    credentials and their own usage rules. We needed to
+                    consolidate that without slowing anyone down.
                 </p>
 
                 <h2>Why direct provider access stops working</h2>
                 <p>
-                    The pain was not technical. It was operational. Every
-                    engineer who needed LLM access had to do the same dance:
+                    The issue was not technical. It was operational. Every
+                    engineer who needed LLM access had to repeat the same steps:
                 </p>
 
                 <ul>
@@ -105,12 +105,12 @@
                 </ul>
 
                 <p>
-                    That friction is invisible on day one. Multiply it across
-                    services and developers, and you end up with a sprawl of
-                    credentials, several partially-used accounts, and no shared
-                    sense of what is going on. Worse, when a key leaked or got
-                    burned through, the blast radius was invisible until the
-                    bill arrived.
+                    That overhead is easy to miss at first. Multiply it across
+                    services and developers, and you end up with a growing set
+                    of credentials, several partially-used accounts, and no
+                    shared sense of what is going on. Worse, when a key leaked
+                    or was used up, the impact was invisible until the bill
+                    arrived.
                 </p>
 
                 <p>We wanted three things out of a centralized layer:</p>
@@ -135,7 +135,7 @@
                 <p>
                     We evaluated a few options: building a thin proxy in Go,
                     using a managed gateway, and LiteLLM. LiteLLM won because it
-                    solved the boring parts for us. It speaks the
+                    handled the routine parts for us. It speaks the
                     OpenAI-compatible API, already knows how to talk to every
                     provider we care about, and ships with the features we
                     needed out of the box, including authentication, per-user
@@ -145,13 +145,13 @@
 
                 <p>
                     Another factor was maintainability. LiteLLM is built in
-                    Python, which has effectively become the lingua franca of
-                    the AI ecosystem. Most AI tooling, SDKs, and integrations
-                    are developed in Python first, making it easier to extend,
+                    Python, which has become the common language of the AI
+                    ecosystem. Most AI tooling, SDKs, and integrations are
+                    developed in Python first, making it easier to extend,
                     troubleshoot, and keep up with new model providers as they
-                    emerge. Choosing a solution that lives close to where AI
-                    innovation happens reduces the amount of custom
-                    infrastructure we need to maintain over time.
+                    emerge. Choosing a solution that tracks the AI ecosystem
+                    closely reduces the amount of custom infrastructure we need
+                    to maintain over time.
                 </p>
 
                 <h2>How we deployed it</h2>
@@ -163,13 +163,12 @@
                     to operate on day one.
                 </p>
                 <p>
-                    We optimized for simplicity first. The current architecture
-                    provides sufficient capacity for our workloads, and scaling
-                    is straightforward: compute resources can be increased
-                    through vertical scaling, while database capacity and
-                    storage can be expanded independently as demand grows. We
-                    can defer distributed systems complexity until there is a
-                    clear operational need for it.
+                    We optimized for simplicity first. The current setup handles
+                    our load well, and scaling is straightforward: compute
+                    resources can be increased through vertical scaling, while
+                    database capacity and storage can be expanded independently
+                    as demand grows. We can defer distributed systems complexity
+                    until there is a clear operational need for it.
                 </p>
 
                 <h2>Tradeoffs</h2>
@@ -185,20 +184,19 @@
 
                 <h2>Was it worth it</h2>
                 <p>
-                    Yes, decisively. The friction of operating without a gateway
-                    was higher than the friction of operating one. We gained
-                    visibility, control, and a single place to evolve the
-                    platform. We gave up a small amount of operational
-                    simplicity at the edge, but the edge was never where the
-                    real pain lived.
+                    Yes. The friction of operating without a gateway was higher
+                    than the friction of operating one. We gained visibility,
+                    control, and a single place to evolve the platform. We gave
+                    up a small amount of operational simplicity in the proxy
+                    layer, but that layer was never the main problem.
                 </p>
 
                 <p>
-                    What is interesting is that we are only using a fraction of
-                    LiteLLM's capabilities today. The initial deployment focused
-                    on solving the immediate problems: centralized access,
-                    authentication, spend tracking, and provider management.
-                    That alone delivered enough value to justify the platform.
+                    Today we are only using a fraction of LiteLLM's
+                    capabilities. The initial deployment focused on solving the
+                    immediate problems: centralized access, authentication,
+                    spend tracking, and provider management. That alone
+                    delivered enough value to justify the platform.
                 </p>
                 <p>
                     Looking ahead, the gateway becomes a foundation for broader
@@ -212,15 +210,16 @@
                     If you're at the stage where a handful of services and a few
                     dozen developers are each managing their own LLM access, the
                     answer is almost always to centralize. LiteLLM is a
-                    reasonable default for that. Neither the only option nor
-                    perfect, but it solves a real problem with little overhead.
+                    reasonable default for that. It is not the only option and
+                    not perfect, but it solves a real problem with little
+                    overhead.
                 </p>
 
                 <p>
                     The broader lesson is that consolidation is governance, not
                     just convenience. A single proxy is how you see spend,
                     enforce limits, and revoke access. The cost saving is real,
-                    but the visibility is the actual prize. Anything that speaks
+                    but the visibility is the real gain. Anything that speaks
                     the OpenAI shape inherits every tool and SDK that already
                     does. That is why a thin proxy that translates request
                     shapes is so much more useful than a custom gateway with a
